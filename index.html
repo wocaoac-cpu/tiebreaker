@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tiebreaker — stuck between options? See which one actually wins, and why</title>
+<meta name="description" content="A free, private decision-maker. List your options and what matters, score them, and Tiebreaker ranks them, shows why the winner won, and finds the tipping point that would flip your choice. 100% in your browser.">
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2032%2032'%3E%3Crect%20width='32'%20height='32'%20rx='7'%20fill='%230f1419'/%3E%3Cline%20x1='16'%20y1='7'%20x2='16'%20y2='25'%20stroke='%2334d39e'%20stroke-width='2'%20stroke-linecap='round'/%3E%3Cline%20x1='8'%20y1='10'%20x2='24'%20y2='12.5'%20stroke='%2334d39e'%20stroke-width='2'%20stroke-linecap='round'/%3E%3Ccircle%20cx='8'%20cy='10'%20r='2.6'%20fill='%23f5b94a'/%3E%3Ccircle%20cx='24'%20cy='12.5'%20r='2.6'%20fill='%2334d39e'/%3E%3Crect%20x='11'%20y='25'%20width='10'%20height='2.4'%20rx='1.2'%20fill='%2334d39e'/%3E%3C/svg%3E">
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700;800&family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500;700&family=Noto+Sans+SC:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#0f1419; --bg2:#141b22; --panel:#19212b; --panel2:#1f2935;
+  --line:rgba(140,175,180,.12); --line2:rgba(140,175,180,.22);
+  --txt:#eaf1f1; --dim:#8ea2a5; --dim2:#54626a;
+  --acc:#34d39e; --acc2:#5fe2b6; --acc-soft:rgba(52,211,158,.12); --acc-line:rgba(52,211,158,.34);
+  --gold:#f5b94a; --gold-soft:rgba(245,185,74,.13); --rose:#ff6f6f;
+  --mono:'JetBrains Mono',ui-monospace,monospace;
+  --sans:'Inter','Noto Sans SC',-apple-system,sans-serif;
+  --disp:'Sora','Noto Sans SC',sans-serif;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{background:var(--bg);color:var(--txt);font-family:var(--sans);-webkit-font-smoothing:antialiased;overflow-x:hidden}
+::selection{background:var(--acc);color:#06251a}
+button{font-family:inherit;cursor:pointer}
+.bg-glow{position:fixed;top:-30vh;left:50%;transform:translateX(-50%);width:100vw;height:80vh;z-index:0;pointer-events:none;
+  background:radial-gradient(ellipse 50% 60% at 50% 0%,rgba(52,211,158,.10),transparent 70%)}
+.wrap{max-width:1040px;margin:0 auto;padding:0 26px;position:relative;z-index:1}
+
+header{position:sticky;top:0;z-index:100;backdrop-filter:blur(10px);background:linear-gradient(to bottom,rgba(15,20,25,.94),rgba(15,20,25,.6));border-bottom:1px solid var(--line)}
+.hd{display:flex;align-items:center;justify-content:space-between;padding:14px 26px;max-width:1040px;margin:0 auto}
+.logo{display:flex;align-items:center;gap:11px;font-family:var(--mono);font-size:13px;letter-spacing:.14em;font-weight:700}
+.logo .mk{width:27px;height:27px;display:grid;place-items:center;border-radius:7px;background:var(--acc-soft);border:1px solid var(--acc-line)}
+.hd-r{display:flex;align-items:center;gap:14px}
+.lock{display:flex;align-items:center;gap:7px;font-family:var(--mono);font-size:10.5px;color:var(--acc2);letter-spacing:.03em}
+.lock i{width:6px;height:6px;border-radius:50%;background:var(--acc);box-shadow:0 0 8px var(--acc)}
+@media(max-width:640px){.lock span{display:none}}
+.langs{display:flex;gap:3px}
+.langs button{background:none;border:1px solid var(--line2);color:var(--dim);font-family:var(--mono);font-size:10px;letter-spacing:.08em;border-radius:20px;padding:4px 9px;transition:.16s}
+.langs button.on{border-color:var(--acc-line);color:var(--acc2);background:var(--acc-soft)}
+
+.hero{padding:54px 0 22px;text-align:center}
+.kicker{display:inline-block;font-family:var(--mono);font-size:11px;letter-spacing:.26em;color:var(--acc2);margin-bottom:18px;border:1px solid var(--acc-line);background:var(--acc-soft);border-radius:20px;padding:6px 14px}
+h1{font-family:var(--disp);font-weight:800;font-size:clamp(31px,5vw,54px);line-height:1.06;letter-spacing:-.02em;max-width:780px;margin:0 auto}
+h1 em{font-style:normal;color:var(--acc)}
+.lede{font-size:16px;color:var(--dim);line-height:1.7;max-width:600px;margin:18px auto 0}
+.lede b{color:var(--txt);font-weight:600}
+
+.presets{display:flex;gap:7px;flex-wrap:wrap;justify-content:center;margin:26px auto 0}
+.preset{font-family:var(--mono);font-size:11px;color:var(--dim);border:1px solid var(--line2);background:none;border-radius:16px;padding:6px 12px;transition:.15s}
+.preset:hover{color:var(--acc2);border-color:var(--acc-line)}
+
+/* builder grid */
+.builder{margin:22px 0 0;background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:8px;overflow-x:auto;box-shadow:0 24px 60px rgba(0,0,0,.34)}
+table.grid{border-collapse:collapse;width:100%;min-width:520px}
+table.grid th,table.grid td{padding:8px;text-align:center;vertical-align:middle}
+.cellhdr{position:relative}
+.optname{background:var(--bg2);border:1px solid var(--line2);border-radius:8px;color:var(--txt);font-family:var(--disp);font-weight:600;font-size:14px;padding:8px 10px;width:118px;text-align:center;outline:none}
+.optname:focus{border-color:var(--acc-line)}
+.delcol{position:absolute;top:-6px;right:2px;width:18px;height:18px;border:none;background:var(--panel2);color:var(--dim2);border-radius:50%;font-size:11px;line-height:1;display:grid;place-items:center;transition:.15s}
+.delcol:hover{color:var(--rose)}
+.critcell{text-align:left;min-width:150px}
+.critname{background:none;border:none;border-bottom:1px solid var(--line2);color:var(--txt);font-size:13.5px;font-weight:500;padding:4px 2px;width:130px;outline:none}
+.critname:focus{border-color:var(--acc-line)}
+.wrow{display:flex;align-items:center;gap:6px;margin-top:5px}
+.wrow .wlab{font-family:var(--mono);font-size:9px;color:var(--dim2);letter-spacing:.06em}
+.wstars{display:flex;gap:2px}
+.wstar{width:14px;height:14px;cursor:pointer;color:var(--dim2);font-size:13px;line-height:1}
+.wstar.on{color:var(--gold)}
+.delrow{border:none;background:none;color:var(--dim2);font-size:14px;transition:.15s;padding:2px}
+.delrow:hover{color:var(--rose)}
+.scoreinp{width:54px;background:var(--bg2);border:1px solid var(--line2);border-radius:8px;color:var(--txt);font-family:var(--mono);font-size:14px;text-align:center;padding:7px 4px;outline:none}
+.scoreinp:focus{border-color:var(--acc-line)}
+.gridfoot{display:flex;gap:10px;padding:12px 8px 6px;flex-wrap:wrap}
+.addbtn{font-size:12.5px;color:var(--acc2);border:1px dashed var(--line2);background:none;border-radius:9px;padding:8px 13px;transition:.15s}
+.addbtn:hover{border-color:var(--acc-line)}
+.scorehint{font-size:11px;color:var(--dim2);text-align:center;margin-top:8px;font-family:var(--mono)}
+
+/* results */
+#results{padding:8px 0 60px}
+.verdict{background:linear-gradient(150deg,var(--acc-soft),var(--panel) 62%);border:1px solid var(--acc-line);border-radius:18px;padding:24px 28px;margin:22px 0;display:flex;align-items:center;gap:22px;flex-wrap:wrap}
+.verdict.close{background:linear-gradient(150deg,var(--gold-soft),var(--panel) 62%);border-color:rgba(245,185,74,.34)}
+.verdict .em{font-size:34px;line-height:1}
+.verdict .tag{font-family:var(--mono);font-size:10.5px;letter-spacing:.18em;color:var(--acc2);text-transform:uppercase}
+.verdict.close .tag{color:var(--gold)}
+.verdict .big{font-family:var(--disp);font-weight:800;font-size:clamp(24px,4vw,38px);line-height:1.08;margin-top:5px}
+.verdict .sub{color:var(--dim);font-size:13.5px;margin-top:7px;line-height:1.55}
+.verdict .sub b{color:var(--txt)}
+
+.bars{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:18px 22px;margin-bottom:18px}
+.bars h3,.block h3{font-family:var(--disp);font-weight:600;font-size:15px;margin-bottom:14px}
+.brow{display:grid;grid-template-columns:120px 1fr 46px;gap:11px;align-items:center;margin-bottom:10px}
+@media(max-width:520px){.brow{grid-template-columns:90px 1fr 40px}}
+.brow .bn{font-size:13.5px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.brow .bn.win{color:var(--acc2)}
+.btrack{height:14px;background:var(--bg2);border-radius:7px;overflow:hidden}
+.bfill{height:100%;border-radius:7px;background:var(--dim2);transition:width .6s cubic-bezier(.2,.7,.2,1)}
+.bfill.win{background:linear-gradient(90deg,var(--acc),var(--acc2))}
+.brow .bv{font-family:var(--mono);font-size:13px;text-align:right}
+
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:18px}
+@media(max-width:680px){.grid2{grid-template-columns:1fr}}
+.block{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:18px 22px}
+.reason{display:flex;align-items:center;gap:10px;font-size:13.5px;padding:6px 0;color:var(--dim)}
+.reason .rc{flex:none;width:8px;height:8px;border-radius:2px;background:var(--acc)}
+.reason b{color:var(--txt);font-weight:500}
+.reason .rv{margin-left:auto;font-family:var(--mono);font-size:12px;color:var(--acc2)}
+.tipping{display:flex;gap:12px;align-items:flex-start;font-size:13.5px;color:var(--txt);line-height:1.55}
+.tipping .ti{font-size:20px;flex:none}
+.tipping b{color:var(--gold)}
+
+.toolbar{display:flex;gap:10px;flex-wrap:wrap;justify-content:center}
+.btn{border:1px solid var(--line2);background:var(--panel2);color:var(--txt);border-radius:9px;font-size:12.5px;font-weight:500;padding:9px 14px;transition:.15s}
+.btn:hover{border-color:var(--acc-line);color:var(--acc2)}
+
+footer{border-top:1px solid var(--line);padding:28px 0;text-align:center;color:var(--dim2);font-size:12.5px;line-height:1.8;margin-top:14px}
+footer b{color:var(--dim)}
+.disc{max-width:600px;margin:0 auto}
+</style>
+</head>
+<body>
+<div class="bg-glow"></div>
+
+<header>
+  <div class="hd">
+    <div class="logo">
+      <span class="mk"><svg width="16" height="16" viewBox="0 0 32 32"><line x1="16" y1="7" x2="16" y2="25" stroke="#34d39e" stroke-width="2" stroke-linecap="round"/><line x1="8" y1="10" x2="24" y2="12.5" stroke="#34d39e" stroke-width="2" stroke-linecap="round"/><circle cx="8" cy="10" r="2.6" fill="#f5b94a"/><circle cx="24" cy="12.5" r="2.6" fill="#34d39e"/><rect x="11" y="25" width="10" height="2.4" rx="1.2" fill="#34d39e"/></svg></span>
+      <b>TIEBREAKER</b>
+    </div>
+    <div class="hd-r">
+      <div class="lock"><i></i><span data-i="lock">100% local · nothing uploaded</span></div>
+      <div class="langs">
+        <button data-lang="en" class="on">EN</button>
+        <button data-lang="zh">中</button>
+        <button data-lang="uk">UA</button>
+      </div>
+    </div>
+  </div>
+</header>
+
+<main class="wrap">
+  <section class="hero">
+    <span class="kicker" data-i="kicker">DECISION MAKER · 100% IN YOUR BROWSER</span>
+    <h1 data-i="h1">Stuck between options? See which one <em>actually wins</em>.</h1>
+    <p class="lede" data-i="lede">List your options and what matters to you, score them, and Tiebreaker ranks them, shows <b>why the winner won</b>, and finds the <b>tipping point</b> that would flip your choice. Nothing leaves your browser.</p>
+    <div class="presets" id="presets"></div>
+  </section>
+
+  <section class="builder">
+    <table class="grid"><tbody id="grid"></tbody></table>
+    <div class="gridfoot">
+      <button class="addbtn" id="addOpt" data-i="add_opt">+ Add option</button>
+      <button class="addbtn" id="addCrit" data-i="add_crit">+ Add what matters</button>
+    </div>
+    <div class="scorehint" data-i="hint">Score each option 0–10 on each row · weight = how much that row matters (★)</div>
+  </section>
+
+  <section id="results"></section>
+</main>
+
+<footer class="wrap">
+  <p class="disc">
+    <b>Tiebreaker</b> · <span data-i="f1">Project 0037 · built by Claude on the Opportunity Radar</span><br>
+    <span data-i="disc">A structured way to think — the math reflects your own scores and weights, not an opinion. Everything runs in your browser.</span>
+  </p>
+</footer>
+
+<script type="module" src="app.js?v=1"></script>
+</body>
+</html>
